@@ -1,4 +1,4 @@
-// import '@nomiclabs/hardhat-ethers'
+import '@nomiclabs/hardhat-etherscan';
 import '@nomiclabs/hardhat-waffle';
 import '@typechain/hardhat';
 import 'solidity-coverage';
@@ -81,6 +81,7 @@ export default {
         apiKey: {
             polygon: config.polygonApiKey,
             mainnet: config.ethereumApiKey,
+            polygonMumbai: config.polygonApiKey,
         },
     },
 };

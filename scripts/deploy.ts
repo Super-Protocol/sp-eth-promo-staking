@@ -5,8 +5,8 @@ async function main() {
         throw new Error('ADMIN_MULTISIG is not provided');
     }
 
-    const PromoStaking = await ethers.getContractFactory('PromoStaking');
-    const promoStaking = await PromoStaking.deploy(process.env.ADMIN_MULTISIG);
+    const PromoStakingFactory = await ethers.getContractFactory('PromoStaking');
+    const promoStaking = await PromoStakingFactory.deploy(process.env.ADMIN_MULTISIG);
     await promoStaking.deployed();
 
     console.log('PromoStaking deployed to:', promoStaking.address);

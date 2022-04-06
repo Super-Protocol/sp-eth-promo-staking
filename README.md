@@ -27,7 +27,7 @@ $ npx hardhat run scripts/deploy.ts --network ethereum
 ```
 
 ## Verify on etherscun
-npx hardhat verify --contract contracts/PromoStaking.sol --network ethereum <contract address>
+npx hardhat verify --contract contracts/PromoStaking.sol:PromoStaking --network ethereum <contract address> <staking_multisig address>
 
 ```
 

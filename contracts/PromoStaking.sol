@@ -9,21 +9,20 @@ contract PromoStaking {
         uint256 rewardDebt;
     }
 
-    uint256 constant STAKING_START_TIME = 1655251200; // ~ Jun 15 2022 00:00:00 GMT+0000
-    uint256 constant STAKING_END_TIME = 1671062400; // ~ Dec 15 2022 00:00:00 GMT+0000
     uint256 constant ACCURACY = 1e12;
 
+    bool public inited;
+    uint256 public lastUpdated;
+    uint256 public totalStaked;
+    uint256 public totalRewardPaid;
+    uint256 public cumulativeRewardPerShare;
     mapping(address => UserInfo) public userInfo;
 
-    bool public inited;
-    uint256 public totalStaked;
-    uint256 public cumulativeRewardPerShare;
-    uint256 public lastUpdated = STAKING_START_TIME;
-
     // immutable
-    uint256 public rewardPerSec;
+    uint256 public rewardPerBlock;
     uint256 public totalReward;
-    uint256 public totalRewardPaid;
+    uint256 public startBlock;
+    uint256 public endBlock;
     address public token;
     address public owner;
 
@@ -32,14 +31,8 @@ contract PromoStaking {
     event Claim(address indexed user, uint256 amount);
     event EmergencyWithdraw(address indexed user, uint256 amount);
 
-    modifier onlyOnInited() {
-        require(inited, "Not inited");
-        _;
-    }
-
-    modifier notFinished() {
-        require(block.timestamp < STAKING_END_TIME, "Promo staking finished");
-        _;
+    constructor(address _owner) {
+        owner = _owner;
     }
 
     function _transferReward(address to, uint256 amount) private {
@@ -57,35 +50,35 @@ contract PromoStaking {
         amount = userInfo[_user].amount;
     }
 
-    constructor(address _owner) {
-        owner = _owner;
-    }
-
     function initialize(
         address _token,
-        uint256 _totalReward
+        uint256 _totalReward,
+        uint256 _startBlock,
+        uint256 stakingDurationInBlocks
     ) external {
         require(msg.sender == owner, "Only owner");
         require(!inited, "Already inited");
         token = _token;
         totalReward = _totalReward;
-        rewardPerSec = totalReward / (STAKING_END_TIME - STAKING_START_TIME);
+        startBlock = _startBlock;
+        lastUpdated = _startBlock;
+        endBlock = _startBlock + stakingDurationInBlocks;
+        rewardPerBlock = totalReward / stakingDurationInBlocks;
         inited = true;
     }
 
     function updCumulativeRewardPerShare() public onlyOnInited {
-        if (block.timestamp <= lastUpdated) {
+        if (block.number <= lastUpdated) {
             return;
         }
-
-        uint256 timePassed = block.timestamp - lastUpdated;
         if (totalStaked == 0) {
-            lastUpdated = block.timestamp;
+            lastUpdated = block.number;
             return;
         }
-        if (block.timestamp < STAKING_END_TIME) {
-            cumulativeRewardPerShare += (timePassed * rewardPerSec * ACCURACY) / totalStaked;
-            lastUpdated = block.timestamp;
+        if (block.number < endBlock) {
+            uint256 timePassed = block.number - lastUpdated;
+            cumulativeRewardPerShare += (timePassed * rewardPerBlock * ACCURACY) / totalStaked;
+            lastUpdated = block.number;
         }
     }
 
@@ -135,5 +128,15 @@ contract PromoStaking {
         user.rewardDebt = 0;
 
         emit EmergencyWithdraw(msg.sender, user.amount);
+    }
+
+    modifier onlyOnInited() {
+        require(inited, "Not inited");
+        _;
+    }
+
+    modifier notFinished() {
+        require(block.number < endBlock, "Promo staking finished");
+        _;
     }
 }
