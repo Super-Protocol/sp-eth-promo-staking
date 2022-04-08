@@ -58,6 +58,8 @@ contract PromoStaking {
     ) external {
         require(msg.sender == owner, "Only owner");
         require(!inited, "Already inited");
+        require(_startBlock > block.number, "Invalid start block");
+        require(IERC20(_token).balanceOf(address(this)) >= _totalReward, "Token balance lower than desired");
         token = _token;
         totalReward = _totalReward;
         startBlock = _startBlock;
@@ -75,10 +77,33 @@ contract PromoStaking {
             lastUpdated = block.number;
             return;
         }
-        if (block.number < endBlock) {
+        if (block.number <= endBlock) {
             uint256 timePassed = block.number - lastUpdated;
             cumulativeRewardPerShare += (timePassed * rewardPerBlock * ACCURACY) / totalStaked;
             lastUpdated = block.number;
+            return;
+        }
+        if (block.number > endBlock) {
+            lastUpdated = lastUpdated < endBlock ? lastUpdated : endBlock;
+            uint256 timePassed = endBlock - lastUpdated;
+            cumulativeRewardPerShare += (timePassed * rewardPerBlock * ACCURACY) / totalStaked;
+        }
+    }
+
+    function capitalizeStake() external onlyOnInited notFinished {
+        require(startBlock < block.number, "Staking not started");
+        address staker = msg.sender;
+        UserInfo storage user = userInfo[staker];
+        updCumulativeRewardPerShare();
+        
+        uint256 pending = (user.amount * cumulativeRewardPerShare) / ACCURACY - user.rewardDebt;
+        if (pending > 0) {
+            user.amount += pending;
+            totalStaked += pending;
+            totalRewardPaid += pending;
+            user.rewardDebt = (user.amount * cumulativeRewardPerShare) / ACCURACY;
+
+            emit Deposit(staker, pending);
         }
     }
 
@@ -122,8 +147,11 @@ contract PromoStaking {
 
     // Withdraw without caring about rewards. EMERGENCY ONLY.
     function emergencyWithdraw() external onlyOnInited {
+        updCumulativeRewardPerShare();
         UserInfo storage user = userInfo[msg.sender];
+
         IERC20(token).transfer(address(msg.sender), user.amount);
+        totalStaked -= user.amount;
         user.amount = 0;
         user.rewardDebt = 0;
 
