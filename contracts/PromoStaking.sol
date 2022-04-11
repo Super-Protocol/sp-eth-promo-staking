@@ -11,7 +11,7 @@ contract PromoStaking {
 
     uint256 constant ACCURACY = 1e12;
 
-    bool public inited;
+    bool public initialized;
     uint256 public lastUpdated;
     uint256 public totalStaked;
     uint256 public totalRewardPaid;
@@ -24,15 +24,15 @@ contract PromoStaking {
     uint256 public startBlock;
     uint256 public endBlock;
     address public token;
-    address public owner;
+    address public initializer;
 
     event Deposit(address indexed user, uint256 amount);
     event Withdraw(address indexed user, uint256 amount);
     event Claim(address indexed user, uint256 amount);
     event EmergencyWithdraw(address indexed user, uint256 amount);
 
-    constructor(address _owner) {
-        owner = _owner;
+    constructor(address _initializer) {
+        initializer = _initializer;
     }
 
     function _transferReward(address to, uint256 amount) private {
@@ -41,9 +41,13 @@ contract PromoStaking {
         totalRewardPaid += amount;
     }
 
+    function _getPendingReward(uint256 amount) private view returns(uint256) {
+        return (amount * cumulativeRewardPerShare) / ACCURACY;
+    }
+
     function getPendingTokens(address _user) external view returns (uint256 pending) {
         UserInfo storage user = userInfo[_user];
-        pending = (user.amount * cumulativeRewardPerShare) / ACCURACY - user.rewardDebt;
+        pending = _getPendingReward(user.amount) - user.rewardDebt;
     }
 
     function getStakedAmount(address _user) external view returns (uint256 amount) {
@@ -56,8 +60,8 @@ contract PromoStaking {
         uint256 _startBlock,
         uint256 stakingDurationInBlocks
     ) external {
-        require(msg.sender == owner, "Only owner");
-        require(!inited, "Already inited");
+        require(msg.sender == initializer, "Only initializer");
+        require(!initialized, "Already initialized");
         require(_startBlock > block.number, "Invalid start block");
         require(IERC20(_token).balanceOf(address(this)) >= _totalReward, "Token balance lower than desired");
         token = _token;
@@ -66,10 +70,11 @@ contract PromoStaking {
         lastUpdated = _startBlock;
         endBlock = _startBlock + stakingDurationInBlocks;
         rewardPerBlock = totalReward / stakingDurationInBlocks;
-        inited = true;
+        initialized = true;
     }
 
-    function updCumulativeRewardPerShare() public onlyOnInited {
+    function updCumulativeRewardPerShare() public onlyIfInitialized {
+        uint256 timePassed;
         if (block.number <= lastUpdated) {
             return;
         }
@@ -78,41 +83,38 @@ contract PromoStaking {
             return;
         }
         if (block.number <= endBlock) {
-            uint256 timePassed = block.number - lastUpdated;
-            cumulativeRewardPerShare += (timePassed * rewardPerBlock * ACCURACY) / totalStaked;
+            timePassed = block.number - lastUpdated;
             lastUpdated = block.number;
-            return;
+        } else {
+            timePassed = endBlock - lastUpdated;
+            lastUpdated = endBlock;
         }
-        if (block.number > endBlock) {
-            lastUpdated = lastUpdated < endBlock ? lastUpdated : endBlock;
-            uint256 timePassed = endBlock - lastUpdated;
-            cumulativeRewardPerShare += (timePassed * rewardPerBlock * ACCURACY) / totalStaked;
-        }
+        cumulativeRewardPerShare += (timePassed * rewardPerBlock * ACCURACY) / totalStaked;
     }
 
-    function capitalizeStake() external onlyOnInited notFinished {
+    function capitalizeStake() external onlyIfInitialized notFinished {
         require(startBlock < block.number, "Staking not started");
         address staker = msg.sender;
         UserInfo storage user = userInfo[staker];
         updCumulativeRewardPerShare();
         
-        uint256 pending = (user.amount * cumulativeRewardPerShare) / ACCURACY - user.rewardDebt;
+        uint256 pending = _getPendingReward(user.amount) - user.rewardDebt;
         if (pending > 0) {
             user.amount += pending;
             totalStaked += pending;
             totalRewardPaid += pending;
-            user.rewardDebt = (user.amount * cumulativeRewardPerShare) / ACCURACY;
+            user.rewardDebt = _getPendingReward(user.amount);
 
             emit Deposit(staker, pending);
         }
     }
 
-    function stake(uint256 amount, address recipientAddress) external onlyOnInited notFinished {
+    function stake(uint256 amount, address recipientAddress) external onlyIfInitialized notFinished {
         UserInfo storage recipient = userInfo[recipientAddress];
         address staker = msg.sender;
         updCumulativeRewardPerShare();
 
-        uint256 pending = (recipient.amount * cumulativeRewardPerShare) / ACCURACY - recipient.rewardDebt;
+        uint256 pending = _getPendingReward(recipient.amount) - recipient.rewardDebt;
         if (pending > 0) {
             _transferReward(recipientAddress, pending);
         }
@@ -121,17 +123,17 @@ contract PromoStaking {
             recipient.amount += amount;
             totalStaked += amount;
         }
-        recipient.rewardDebt = (recipient.amount * cumulativeRewardPerShare) / ACCURACY;
+        recipient.rewardDebt = _getPendingReward(recipient.amount);
 
         emit Deposit(recipientAddress, amount);
     }
 
-    function unstake(uint256 amount) external onlyOnInited {
+    function unstake(uint256 amount) external onlyIfInitialized {
         UserInfo storage user = userInfo[msg.sender];
         updCumulativeRewardPerShare();
 
         require(user.amount >= amount, "Stake is not enough");
-        uint256 pending = (user.amount * cumulativeRewardPerShare) / ACCURACY - user.rewardDebt;
+        uint256 pending = _getPendingReward(user.amount) - user.rewardDebt;
         if (pending > 0) {
             _transferReward(msg.sender, pending);
         }
@@ -140,13 +142,13 @@ contract PromoStaking {
             totalStaked -= amount;
             IERC20(token).transfer(msg.sender, amount);
         }
-        user.rewardDebt = (user.amount * cumulativeRewardPerShare) / ACCURACY;
+        user.rewardDebt = _getPendingReward(user.amount);
 
         emit Withdraw(msg.sender, amount);
     }
 
     // Withdraw without caring about rewards. EMERGENCY ONLY.
-    function emergencyWithdraw() external onlyOnInited {
+    function emergencyWithdraw() external onlyIfInitialized {
         updCumulativeRewardPerShare();
         UserInfo storage user = userInfo[msg.sender];
 
@@ -158,8 +160,8 @@ contract PromoStaking {
         emit EmergencyWithdraw(msg.sender, user.amount);
     }
 
-    modifier onlyOnInited() {
-        require(inited, "Not inited");
+    modifier onlyIfInitialized() {
+        require(initialized, "Not initialized");
         _;
     }
 

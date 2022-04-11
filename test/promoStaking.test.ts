@@ -85,7 +85,7 @@ describe('PromoStaking', function () {
 
     it('Should initialized only one time', async function () {
         await initializeDefault();
-        await expect(promoStaking.initialize(superproToken.address, 1, STAKING_START_BLOCK, STAKING_DURATION_IN_BLOCKS)).be.revertedWith('Already inited');
+        await expect(promoStaking.initialize(superproToken.address, 1, STAKING_START_BLOCK, STAKING_DURATION_IN_BLOCKS)).be.revertedWith('Already initialized');
     });
 
     it('Should fail initialize with a startBlock less than the current block', async function () {
