@@ -2,46 +2,49 @@
 pragma solidity ^0.8.9;
 
 import "./openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "./openzeppelin/contracts/utils/math/SafeCast.sol";
 
 contract PromoStaking {
+    using SafeCast for uint256;
+
     struct UserInfo {
-        uint256 amount;
-        uint256 rewardDebt;
+        uint128 amount;
+        uint128 rewardDebt;
     }
 
-    uint256 constant ACCURACY = 1e12;
+    uint64 constant ACCURACY = 1e12;
 
     bool public initialized;
-    uint256 public lastUpdated;
-    uint256 public totalStaked;
-    uint256 public totalRewardPaid;
-    uint256 public cumulativeRewardPerShare;
+    uint32 public lastUpdated;
+    uint128 public totalStaked;
+    uint128 public totalRewardPaid;
+    uint128 public cumulativeRewardPerShare;
     mapping(address => UserInfo) public userInfo;
 
     // immutable
-    uint256 public rewardPerBlock;
-    uint256 public totalReward;
-    uint256 public startBlock;
-    uint256 public endBlock;
+    uint128 public rewardPerBlock;
+    uint128 public totalReward;
+    uint32 public startBlock;
+    uint32 public endBlock;
     address public token;
     address public initializer;
 
-    event Deposit(address indexed user, uint256 amount);
-    event Withdraw(address indexed user, uint256 amount);
-    event Claim(address indexed user, uint256 amount);
-    event EmergencyWithdraw(address indexed user, uint256 amount);
+    event Deposit(address indexed user, uint128 amount);
+    event Withdraw(address indexed user, uint128 amount);
+    event Claim(address indexed user, uint128 amount);
+    event EmergencyWithdraw(address indexed user, uint128 amount);
 
     constructor(address _initializer) {
         initializer = _initializer;
     }
 
-    function _transferReward(address to, uint256 amount) private {
+    function _transferReward(address to, uint128 amount) private {
         require(totalRewardPaid + amount <= totalReward);
         IERC20(token).transfer(to, amount);
         totalRewardPaid += amount;
     }
 
-    function _getPendingReward(uint256 amount) private view returns(uint256) {
+    function _getPendingReward(uint128 amount) private view returns(uint128) {
         return (amount * cumulativeRewardPerShare) / ACCURACY;
     }
 
@@ -56,16 +59,14 @@ contract PromoStaking {
 
     function initialize(
         address _token,
-        uint256 _totalReward,
-        uint256 _startBlock,
-        uint256 stakingDurationInBlocks
+        uint32 _startBlock,
+        uint32 stakingDurationInBlocks
     ) external {
         require(msg.sender == initializer, "Only initializer");
         require(!initialized, "Already initialized");
         require(_startBlock > block.number, "Invalid start block");
-        require(IERC20(_token).balanceOf(address(this)) >= _totalReward, "Token balance lower than desired");
         token = _token;
-        totalReward = _totalReward;
+        totalReward = IERC20(_token).balanceOf(address(this)).toUint128();
         startBlock = _startBlock;
         lastUpdated = _startBlock;
         endBlock = _startBlock + stakingDurationInBlocks;
@@ -74,17 +75,17 @@ contract PromoStaking {
     }
 
     function updCumulativeRewardPerShare() public onlyIfInitialized {
-        uint256 timePassed;
+        uint64 timePassed;
         if (block.number <= lastUpdated) {
             return;
         }
         if (totalStaked == 0) {
-            lastUpdated = block.number;
+            lastUpdated = block.number.toUint32();
             return;
         }
         if (block.number <= endBlock) {
-            timePassed = block.number - lastUpdated;
-            lastUpdated = block.number;
+            timePassed = block.number.toUint32() - lastUpdated;
+            lastUpdated = block.number.toUint32();
         } else {
             timePassed = endBlock - lastUpdated;
             lastUpdated = endBlock;
@@ -92,31 +93,16 @@ contract PromoStaking {
         cumulativeRewardPerShare += (timePassed * rewardPerBlock * ACCURACY) / totalStaked;
     }
 
-    function capitalizeStake() external onlyIfInitialized notFinished {
-        require(startBlock < block.number, "Staking not started");
-        address staker = msg.sender;
-        UserInfo storage user = userInfo[staker];
-        updCumulativeRewardPerShare();
-        
-        uint256 pending = _getPendingReward(user.amount) - user.rewardDebt;
-        if (pending > 0) {
-            user.amount += pending;
-            totalStaked += pending;
-            totalRewardPaid += pending;
-            user.rewardDebt = _getPendingReward(user.amount);
-
-            emit Deposit(staker, pending);
-        }
-    }
-
-    function stake(uint256 amount, address recipientAddress) external onlyIfInitialized notFinished {
+    function stake(uint128 amount, address recipientAddress) external onlyIfInitialized notFinished {
         UserInfo storage recipient = userInfo[recipientAddress];
         address staker = msg.sender;
         updCumulativeRewardPerShare();
 
-        uint256 pending = _getPendingReward(recipient.amount) - recipient.rewardDebt;
-        if (pending > 0) {
-            _transferReward(recipientAddress, pending);
+        uint128 pending = _getPendingReward(recipient.amount) - recipient.rewardDebt;
+        if (pending > 0 && staker == recipientAddress) {
+            recipient.amount += pending;
+            totalStaked += pending;
+            totalRewardPaid += pending;
         }
         if (amount > 0) {
             IERC20(token).transferFrom(staker, address(this), amount);
@@ -128,12 +114,12 @@ contract PromoStaking {
         emit Deposit(recipientAddress, amount);
     }
 
-    function unstake(uint256 amount) external onlyIfInitialized {
+    function unstake(uint128 amount) external onlyIfInitialized {
         UserInfo storage user = userInfo[msg.sender];
         updCumulativeRewardPerShare();
 
         require(user.amount >= amount, "Stake is not enough");
-        uint256 pending = _getPendingReward(user.amount) - user.rewardDebt;
+        uint128 pending = _getPendingReward(user.amount) - user.rewardDebt;
         if (pending > 0) {
             _transferReward(msg.sender, pending);
         }

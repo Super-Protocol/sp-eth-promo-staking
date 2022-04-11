@@ -64,7 +64,6 @@ describe('PromoStaking', function () {
         await superproToken.transfer(promoStaking.address, TOTAL_REWARD);
         await promoStaking.connect(deployer).initialize(
             superproToken.address,
-            TOTAL_REWARD,
             STAKING_START_BLOCK,
             STAKING_DURATION_IN_BLOCKS,
         );
@@ -85,7 +84,7 @@ describe('PromoStaking', function () {
 
     it('Should initialized only one time', async function () {
         await initializeDefault();
-        await expect(promoStaking.initialize(superproToken.address, 1, STAKING_START_BLOCK, STAKING_DURATION_IN_BLOCKS)).be.revertedWith('Already initialized');
+        await expect(promoStaking.initialize(superproToken.address, STAKING_START_BLOCK, STAKING_DURATION_IN_BLOCKS)).be.revertedWith('Already initialized');
     });
 
     it('Should fail initialize with a startBlock less than the current block', async function () {
@@ -93,20 +92,9 @@ describe('PromoStaking', function () {
         const currentBlockNumber = await network.provider.send('eth_blockNumber');
         await expect(promoStaking.connect(deployer).initialize(
             superproToken.address,
-            TOTAL_REWARD,
             currentBlockNumber - 1,
             STAKING_DURATION_IN_BLOCKS,
         )).to.be.revertedWith('Invalid start block');
-    });
-
-    it('Should fail initialize with total reward less than contract balance', async function () {
-        await superproToken.transfer(promoStaking.address, TOTAL_REWARD);
-        await expect(promoStaking.connect(deployer).initialize(
-            superproToken.address,
-            TOTAL_REWARD.add(1),
-            STAKING_START_BLOCK,
-            STAKING_DURATION_IN_BLOCKS,
-        )).to.be.revertedWith('Token balance lower than desired');
     });
 
     it('Should stake own deposit', async function () {
@@ -148,22 +136,6 @@ describe('PromoStaking', function () {
 
         await promoStaking.connect(alice).unstake(aliceStaked); // after method call, blockchain timestamp increase +1 sec
         expect((await superproToken.balanceOf(alice.address)).div(ACCURACY)).to.eq(aliceStaked.add(rewarsPerBlock).div(ACCURACY));
-    });
-
-    it('Should receive own pending reward if you replenish your stake', async function () {
-        await initializeDefault();
-        await setBlockNumber(STAKING_START_BLOCK);
-        const rewarsPerBlock = await promoStaking.rewardPerBlock();
-
-        const aliceStaked = parseEther(123); // 123 * 10^18
-        await airdrop(alice.address, aliceStaked);
-        await superproToken.connect(alice).approve(promoStaking.address, aliceStaked);
-
-        await promoStaking.connect(alice).stake(aliceStaked.div(2), alice.address);
-        expect(await promoStaking.getStakedAmount(alice.address)).to.eq(aliceStaked.div(2));
-
-        await promoStaking.connect(alice).stake(aliceStaked.div(2), alice.address); // after method call, blockchain timestamp increase +1 sec
-        expect((await superproToken.balanceOf(alice.address)).div(ACCURACY)).to.eq(rewarsPerBlock.div(ACCURACY));
     });
 
     it('Should not receive pending reward if replenish stake for another user', async function () {
@@ -381,7 +353,7 @@ describe('PromoStaking', function () {
         await promoStaking.connect(alice).stake(aliceStaked, alice.address);
 
         await setBlockNumber(STAKING_START_BLOCK + 12); // skip 10 block after stake (+approve, +capitalizeStake)
-        await promoStaking.connect(alice).capitalizeStake();
+        await promoStaking.connect(alice).stake(0, alice.address);
 
         expect(await promoStaking.getPendingTokens(alice.address)).to.eq(0);
         expect(
@@ -389,23 +361,6 @@ describe('PromoStaking', function () {
         ).to.eq(
             aliceStaked.add(rewarsPerBlock.mul(10)).mul(ACCURACY).div(aliceStaked)
         );
-    });
-
-    it('Should fail capitalize pending tokens before staking start', async function () {
-        await initializeDefault();
-        const blockNumberBeforeStakingStart = STAKING_START_BLOCK - 5;
-        await setBlockNumber(blockNumberBeforeStakingStart);
-
-        const aliceStaked = parseEther(123); // 123 * 10^18
-        await airdrop(alice.address, aliceStaked);
-        await superproToken.connect(alice).approve(promoStaking.address, aliceStaked);
-
-        await promoStaking.connect(alice).stake(aliceStaked, alice.address);
-        expect(await promoStaking.getStakedAmount(alice.address)).to.eq(aliceStaked);
-
-        const blockNumber = await network.provider.send('eth_blockNumber');
-        expect(+blockNumber).lessThanOrEqual(STAKING_START_BLOCK);
-        await expect(promoStaking.connect(alice).capitalizeStake()).to.be.revertedWith('Staking not started');
     });
 
     it('Should fail capitalize pending tokens after staking finished', async function () {
@@ -419,6 +374,6 @@ describe('PromoStaking', function () {
         await promoStaking.connect(alice).stake(aliceStaked, alice.address);
         expect(await promoStaking.getStakedAmount(alice.address)).to.eq(aliceStaked);
 
-        await expect(promoStaking.connect(alice).capitalizeStake()).to.be.revertedWith('Promo staking finished');
+        await expect(promoStaking.connect(alice).stake(0, alice.address)).to.be.revertedWith('Promo staking finished');
     });
 });
