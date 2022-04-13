@@ -31,7 +31,6 @@ contract PromoStaking {
 
     event Deposit(address indexed user, uint128 amount);
     event Withdraw(address indexed user, uint128 amount);
-    event Claim(address indexed user, uint128 amount);
     event EmergencyWithdraw(address indexed user, uint128 amount);
 
     constructor(address _initializer) {
@@ -44,11 +43,11 @@ contract PromoStaking {
         totalRewardPaid += amount;
     }
 
-    function _getPendingReward(uint128 amount) private view returns(uint128) {
-        return (amount * cumulativeRewardPerShare) / ACCURACY;
+    function _getPendingReward(uint256 amount) private view returns(uint128) {
+        return uint128((amount * cumulativeRewardPerShare) / ACCURACY);
     }
 
-    function getPendingTokens(address _user) external view returns (uint256 pending) {
+    function getPendingTokens(address _user) public view returns (uint128 pending) {
         UserInfo storage user = userInfo[_user];
         pending = _getPendingReward(user.amount) - user.rewardDebt;
     }
@@ -70,36 +69,37 @@ contract PromoStaking {
         startBlock = _startBlock;
         lastUpdated = _startBlock;
         endBlock = _startBlock + stakingDurationInBlocks;
-        rewardPerBlock = totalReward / stakingDurationInBlocks;
+        rewardPerBlock = totalReward * ACCURACY / stakingDurationInBlocks;
         initialized = true;
     }
 
     function updCumulativeRewardPerShare() public onlyIfInitialized {
-        uint64 timePassed;
-        if (block.number <= lastUpdated) {
+        uint32 timePassed;
+        uint32 blockNumber = block.number.toUint32();
+        if (blockNumber <= lastUpdated) {
             return;
         }
         if (totalStaked == 0) {
-            lastUpdated = block.number.toUint32();
+            lastUpdated = blockNumber;
             return;
         }
-        if (block.number <= endBlock) {
-            timePassed = block.number.toUint32() - lastUpdated;
-            lastUpdated = block.number.toUint32();
+        if (blockNumber <= endBlock) {
+            timePassed = blockNumber - lastUpdated;
+            lastUpdated = blockNumber;
         } else {
             timePassed = endBlock - lastUpdated;
             lastUpdated = endBlock;
         }
-        cumulativeRewardPerShare += (timePassed * rewardPerBlock * ACCURACY) / totalStaked;
+        cumulativeRewardPerShare += (timePassed * rewardPerBlock) / totalStaked;
     }
 
     function stake(uint128 amount, address recipientAddress) external onlyIfInitialized notFinished {
         UserInfo storage recipient = userInfo[recipientAddress];
         address staker = msg.sender;
-        updCumulativeRewardPerShare();
 
-        uint128 pending = _getPendingReward(recipient.amount) - recipient.rewardDebt;
-        if (pending > 0 && staker == recipientAddress) {
+        updCumulativeRewardPerShare();
+        uint128 pending = getPendingTokens(recipientAddress);
+        if (pending > 0) {
             recipient.amount += pending;
             totalStaked += pending;
             totalRewardPaid += pending;
@@ -111,15 +111,15 @@ contract PromoStaking {
         }
         recipient.rewardDebt = _getPendingReward(recipient.amount);
 
-        emit Deposit(recipientAddress, amount);
+        emit Deposit(recipientAddress, amount + pending);
     }
 
     function unstake(uint128 amount) external onlyIfInitialized {
         UserInfo storage user = userInfo[msg.sender];
-        updCumulativeRewardPerShare();
-
         require(user.amount >= amount, "Stake is not enough");
-        uint128 pending = _getPendingReward(user.amount) - user.rewardDebt;
+
+        updCumulativeRewardPerShare();
+        uint128 pending = getPendingTokens(msg.sender);
         if (pending > 0) {
             _transferReward(msg.sender, pending);
         }
@@ -130,7 +130,7 @@ contract PromoStaking {
         }
         user.rewardDebt = _getPendingReward(user.amount);
 
-        emit Withdraw(msg.sender, amount);
+        emit Withdraw(msg.sender, amount + pending);
     }
 
     // Withdraw without caring about rewards. EMERGENCY ONLY.
@@ -139,11 +139,11 @@ contract PromoStaking {
         UserInfo storage user = userInfo[msg.sender];
 
         IERC20(token).transfer(address(msg.sender), user.amount);
+        emit EmergencyWithdraw(msg.sender, user.amount);
+
         totalStaked -= user.amount;
         user.amount = 0;
         user.rewardDebt = 0;
-
-        emit EmergencyWithdraw(msg.sender, user.amount);
     }
 
     modifier onlyIfInitialized() {

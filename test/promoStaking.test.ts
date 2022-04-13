@@ -12,7 +12,8 @@ describe('PromoStaking', function () {
     const STAKING_START_BLOCK = 10;
     const STAKING_DURATION_IN_BLOCKS = 300;
     const TOTAL_REWARD = parseEther(10_000);
-    const ACCURACY = 10 ** 9;
+    const DECIMAL_ACCURACY = 12;
+    const ACCURACY = 10 ** DECIMAL_ACCURACY;
 
     let snapshot: any;
 
@@ -45,6 +46,12 @@ describe('PromoStaking', function () {
 
     function parseEther(amount: number) {
         return ethers.utils.parseEther(amount.toString());
+    }
+
+    function roundBN(amount: BigNumber): BigNumber {
+        let strAmount = amount.toString();
+        strAmount = strAmount.substring(0, strAmount.length - DECIMAL_ACCURACY);
+        return BigNumber.from(strAmount);
     }
 
     async function setBlockNumber(blocksIndex: number) {
@@ -125,17 +132,25 @@ describe('PromoStaking', function () {
     it('Should stake/unstake deposit + pending reward', async function () {
         await initializeDefault();
         await setBlockNumber(STAKING_START_BLOCK);
-        const rewarsPerBlock = await promoStaking.rewardPerBlock();
+        const rewarsPerBlock = (await promoStaking.rewardPerBlock()).div(ACCURACY);
 
         const aliceStaked = parseEther(123); // 123 * 10^18
         await airdrop(alice.address, aliceStaked);
         await superproToken.connect(alice).approve(promoStaking.address, aliceStaked);
 
-        await promoStaking.connect(alice).stake(aliceStaked, alice.address);
+        expect(await promoStaking.connect(alice).stake(aliceStaked, alice.address))
+            .to.emit(promoStaking, 'Deposit')
+            .withArgs(alice.address, aliceStaked);
         expect(await promoStaking.getStakedAmount(alice.address)).to.eq(aliceStaked);
 
-        await promoStaking.connect(alice).unstake(aliceStaked); // after method call, blockchain timestamp increase +1 sec
-        expect((await superproToken.balanceOf(alice.address)).div(ACCURACY)).to.eq(aliceStaked.add(rewarsPerBlock).div(ACCURACY));
+        expect(await promoStaking.connect(alice).unstake(aliceStaked))
+            .to.emit(promoStaking, 'Withdraw');
+
+        expect(
+            roundBN(await superproToken.balanceOf(alice.address))
+        ).to.eq(
+            roundBN(aliceStaked.add(rewarsPerBlock))
+        );
     });
 
     it('Should not receive pending reward if replenish stake for another user', async function () {
@@ -159,7 +174,7 @@ describe('PromoStaking', function () {
     it('Should claim only profit', async function () {
         await initializeDefault();
         await setBlockNumber(STAKING_START_BLOCK);
-        const rewarsPerBlock = await promoStaking.rewardPerBlock();
+        const rewarsPerBlock = (await promoStaking.rewardPerBlock()).div(ACCURACY);
 
         const aliceStaked = parseEther(123); // 123 * 10^18
         await airdrop(alice.address, aliceStaked);
@@ -169,7 +184,11 @@ describe('PromoStaking', function () {
         expect(await promoStaking.getStakedAmount(alice.address)).to.eq(aliceStaked);
 
         await promoStaking.connect(alice).unstake(0);
-        expect((await superproToken.balanceOf(alice.address)).div(ACCURACY)).to.eq(rewarsPerBlock.div(ACCURACY));
+        expect(
+            roundBN(await superproToken.balanceOf(alice.address))
+        ).to.eq(
+            roundBN(rewarsPerBlock)
+        );
     });
 
     it('Should accept stake before start date', async function () {
@@ -198,10 +217,10 @@ describe('PromoStaking', function () {
         expect(await promoStaking.getStakedAmount(alice.address)).to.eq(aliceStaked);
 
         await setBlockNumber(STAKING_START_BLOCK);
-        const rewarsPerBlock = await promoStaking.rewardPerBlock();
+        const rewarsPerBlock = (await promoStaking.rewardPerBlock()).div(ACCURACY);
         await promoStaking.connect(alice).updCumulativeRewardPerShare(); // skip 1 sec
         const pendingTokens = await promoStaking.getPendingTokens(alice.address);
-        expect(pendingTokens.div(ACCURACY)).to.eq(rewarsPerBlock.div(ACCURACY));
+        expect(roundBN(pendingTokens)).to.eq(roundBN(rewarsPerBlock));
     });
 
     it('Should distribute rewards less or equal total reward', async function () {
@@ -240,7 +259,8 @@ describe('PromoStaking', function () {
     it('Should distribute rewards in proportion to staked tokens number and staked time. Part #1', async function () {
         await initializeDefault();
         const fixedStakingInterval = 100; // blocks
-        const rewarsPerPeriod = BigNumber.from(fixedStakingInterval).mul(await promoStaking.rewardPerBlock());
+        const rewarsPerBlock = (await promoStaking.rewardPerBlock()).div(ACCURACY);
+        const rewarsPerPeriod = BigNumber.from(fixedStakingInterval).mul(rewarsPerBlock);
 
         const aliceStaked = parseEther(10); // 10 * 10^18
         await airdrop(alice.address, aliceStaked);
@@ -272,7 +292,8 @@ describe('PromoStaking', function () {
     it('Should distribute rewards in proportion to staked tokens number and staked time. Part #2', async function () {
         await initializeDefault();
         const fixedStakingInterval = 100; // blocks
-        const rewarsPerPeriod = BigNumber.from(fixedStakingInterval).mul(await promoStaking.rewardPerBlock());
+        const rewarsPerBlock = (await promoStaking.rewardPerBlock()).div(ACCURACY);
+        const rewarsPerPeriod = BigNumber.from(fixedStakingInterval).mul(rewarsPerBlock);
 
         const aliceStaked = parseEther(10); // 10 * 10^18
         await airdrop(alice.address, aliceStaked);
@@ -313,7 +334,9 @@ describe('PromoStaking', function () {
         expect(await promoStaking.getStakedAmount(alice.address)).to.eq(aliceStaked);
 
         await setBlockNumber(STAKING_START_BLOCK + 100);
-        await expect(promoStaking.connect(alice).emergencyWithdraw()).to.be.not.reverted;
+        await expect(promoStaking.connect(alice).emergencyWithdraw())
+            .to.emit(promoStaking, 'EmergencyWithdraw')
+            .withArgs(alice.address, aliceStaked);
         expect(await superproToken.balanceOf(alice.address)).to.eq(aliceStaked);
     });
 
@@ -347,19 +370,20 @@ describe('PromoStaking', function () {
         await setBlockNumber(STAKING_START_BLOCK);
 
         const aliceStaked = parseEther(123); // 123 * 10^18
-        const rewarsPerBlock = await promoStaking.rewardPerBlock();
+        const rewarsPerBlock = (await promoStaking.rewardPerBlock()).div(ACCURACY);
         await airdrop(alice.address, aliceStaked);
         await superproToken.connect(alice).approve(promoStaking.address, aliceStaked);
         await promoStaking.connect(alice).stake(aliceStaked, alice.address);
 
-        await setBlockNumber(STAKING_START_BLOCK + 12); // skip 10 block after stake (+approve, +capitalizeStake)
+        const capPeriod = 10;
+        await setBlockNumber(STAKING_START_BLOCK + capPeriod + 2); // skip 10 block after stake (+approve, +capitalizeStake)
         await promoStaking.connect(alice).stake(0, alice.address);
 
         expect(await promoStaking.getPendingTokens(alice.address)).to.eq(0);
         expect(
-            (await promoStaking.getStakedAmount(alice.address)).mul(ACCURACY).div(aliceStaked)
+            roundBN(await promoStaking.getStakedAmount(alice.address))
         ).to.eq(
-            aliceStaked.add(rewarsPerBlock.mul(10)).mul(ACCURACY).div(aliceStaked)
+            roundBN(aliceStaked.add(rewarsPerBlock.mul(capPeriod)))
         );
     });
 
