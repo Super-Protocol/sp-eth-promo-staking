@@ -1,0 +1,8 @@
+{
+    "files.exclude": {
+        "dist/": false,
+        "node_modules/": true,
+        ".eslintrc.json": false,
+        "tsconfig.json": false,
+    }
+}
