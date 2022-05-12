@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.9;
 
-import "./openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "./openzeppelin/contracts/utils/math/SafeCast.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "@openzeppelin/contracts/utils/math/SafeCast.sol";
 
 contract PromoStaking {
+    using SafeERC20 for IERC20;
     using SafeCast for uint256;
 
     struct UserInfo {
@@ -22,11 +24,11 @@ contract PromoStaking {
     mapping(address => UserInfo) public userInfo;
 
     // immutable
+    IERC20 public token;
     uint128 public rewardPerBlock;
     uint128 public totalReward;
     uint32 public startBlock;
     uint32 public endBlock;
-    address public token;
     address public initializer;
 
     event Deposit(address indexed user, uint128 amount);
@@ -39,7 +41,7 @@ contract PromoStaking {
 
     function _transferReward(address to, uint128 amount) private {
         require(totalRewardPaid + amount <= totalReward);
-        IERC20(token).transfer(to, amount);
+        token.safeTransfer(to, amount);
         totalRewardPaid += amount;
     }
 
@@ -64,8 +66,8 @@ contract PromoStaking {
         require(msg.sender == initializer, "Only initializer");
         require(!initialized, "Already initialized");
         require(_startBlock > block.number, "Invalid start block");
-        token = _token;
-        totalReward = IERC20(_token).balanceOf(address(this)).toUint128();
+        token = IERC20(_token);
+        totalReward = token.balanceOf(address(this)).toUint128();
         startBlock = _startBlock;
         lastUpdated = _startBlock;
         endBlock = _startBlock + stakingDurationInBlocks;
@@ -105,7 +107,7 @@ contract PromoStaking {
             totalRewardPaid += pending;
         }
         if (amount > 0) {
-            IERC20(token).transferFrom(staker, address(this), amount);
+            token.safeTransferFrom(staker, address(this), amount);
             recipient.amount += amount;
             totalStaked += amount;
         }
@@ -126,7 +128,7 @@ contract PromoStaking {
         if (amount > 0) {
             user.amount -= amount;
             totalStaked -= amount;
-            IERC20(token).transfer(msg.sender, amount);
+            token.safeTransfer(msg.sender, amount);
         }
         user.rewardDebt = _getPendingReward(user.amount);
 
@@ -138,7 +140,7 @@ contract PromoStaking {
         updCumulativeRewardPerShare();
         UserInfo storage user = userInfo[msg.sender];
 
-        IERC20(token).transfer(address(msg.sender), user.amount);
+        token.safeTransfer(msg.sender, user.amount);
         emit EmergencyWithdraw(msg.sender, user.amount);
 
         totalStaked -= user.amount;
