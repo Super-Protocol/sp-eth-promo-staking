@@ -26,9 +26,13 @@ $ npx hardhat run scripts/deploy.ts --network mumbai
 $ npx hardhat run scripts/deploy.ts --network ethereum
 ```
 
-## Verify on etherscun
+## Verify on etherscan
 npx hardhat verify --contract contracts/PromoStaking.sol:PromoStaking --network ethereum <contract address> <staking_multisig address>
 
+## Tasks
+This command will deploy Superpro Token, PromoStaking and then initialize it:
+```sh
+npx hardhat initialize --network <network-name> --initializer <initializer-address> --start <staking-start-block> --duration <staking-duration-in-blocks>
 ```
 
 ### Prettier and linter

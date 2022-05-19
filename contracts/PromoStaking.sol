@@ -45,7 +45,7 @@ contract PromoStaking {
         totalRewardPaid += amount;
     }
 
-    function _getPendingReward(uint256 amount) private view returns(uint128) {
+    function _getPendingReward(uint256 amount) private view returns (uint128) {
         return uint128((amount * cumulativeRewardPerShare) / ACCURACY);
     }
 
@@ -71,7 +71,7 @@ contract PromoStaking {
         startBlock = _startBlock;
         lastUpdated = _startBlock;
         endBlock = _startBlock + stakingDurationInBlocks;
-        rewardPerBlock = totalReward * ACCURACY / stakingDurationInBlocks;
+        rewardPerBlock = (totalReward * ACCURACY) / stakingDurationInBlocks;
         initialized = true;
     }
 
