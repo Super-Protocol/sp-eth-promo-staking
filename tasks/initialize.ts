@@ -9,7 +9,7 @@ task('initialize', 'deploy and initialize PromoStaking')
         const [initializer] = await ethers.getSigners();
     
         const PromoStakingFactory = await ethers.getContractFactory('PromoStaking');
-        const promoStaking = await PromoStakingFactory.deploy(initializer);
+        const promoStaking = await PromoStakingFactory.deploy(initializer.address);
         await promoStaking.deployed();
 
         console.log('PromoStaking deployed to:', promoStaking.address);
