@@ -20,7 +20,10 @@ task('initialize', 'deploy and initialize PromoStaking')
 
         console.log('SuperproToken deployed to:', superproToken.address);
 
-        const txn = await promoStaking.initialize(superproToken.address, start, duration);
+        let txn = await superproToken.transfer(promoStaking.address, parseEther('10000000'));
+        await txn.wait();
+
+        txn = await promoStaking.initialize(superproToken.address, start, duration);
         await txn.wait();
 
         console.log('Done');
