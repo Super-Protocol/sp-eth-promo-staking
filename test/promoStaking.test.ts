@@ -69,11 +69,7 @@ describe('PromoStaking', function () {
 
     async function initializeDefault() {
         await superproToken.transfer(promoStaking.address, TOTAL_REWARD);
-        await promoStaking.connect(deployer).initialize(
-            superproToken.address,
-            STAKING_START_BLOCK,
-            STAKING_DURATION_IN_BLOCKS,
-        );
+        await promoStaking.connect(deployer).initialize(superproToken.address, STAKING_START_BLOCK, STAKING_DURATION_IN_BLOCKS);
     }
 
     it('Should initialize', async function () {
@@ -91,17 +87,17 @@ describe('PromoStaking', function () {
 
     it('Should initialized only one time', async function () {
         await initializeDefault();
-        await expect(promoStaking.initialize(superproToken.address, STAKING_START_BLOCK, STAKING_DURATION_IN_BLOCKS)).be.revertedWith('Already initialized');
+        await expect(promoStaking.initialize(superproToken.address, STAKING_START_BLOCK, STAKING_DURATION_IN_BLOCKS)).be.revertedWith(
+            'Already initialized'
+        );
     });
 
     it('Should fail initialize with a startBlock less than the current block', async function () {
         await superproToken.transfer(promoStaking.address, TOTAL_REWARD);
         const currentBlockNumber = await network.provider.send('eth_blockNumber');
-        await expect(promoStaking.connect(deployer).initialize(
-            superproToken.address,
-            currentBlockNumber - 1,
-            STAKING_DURATION_IN_BLOCKS,
-        )).to.be.revertedWith('Invalid start block');
+        await expect(
+            promoStaking.connect(deployer).initialize(superproToken.address, currentBlockNumber - 1, STAKING_DURATION_IN_BLOCKS)
+        ).to.be.revertedWith('Invalid start block');
     });
 
     it('Should stake own deposit', async function () {
@@ -143,14 +139,9 @@ describe('PromoStaking', function () {
             .withArgs(alice.address, aliceStaked);
         expect(await promoStaking.getStakedAmount(alice.address)).to.eq(aliceStaked);
 
-        expect(await promoStaking.connect(alice).unstake(aliceStaked))
-            .to.emit(promoStaking, 'Withdraw');
+        expect(await promoStaking.connect(alice).unstake(aliceStaked)).to.emit(promoStaking, 'Withdraw');
 
-        expect(
-            roundBN(await superproToken.balanceOf(alice.address))
-        ).to.eq(
-            roundBN(aliceStaked.add(rewarsPerBlock))
-        );
+        expect(roundBN(await superproToken.balanceOf(alice.address))).to.eq(roundBN(aliceStaked.add(rewarsPerBlock)));
     });
 
     it('Should not receive pending reward if replenish stake for another user', async function () {
@@ -184,11 +175,7 @@ describe('PromoStaking', function () {
         expect(await promoStaking.getStakedAmount(alice.address)).to.eq(aliceStaked);
 
         await promoStaking.connect(alice).unstake(0);
-        expect(
-            roundBN(await superproToken.balanceOf(alice.address))
-        ).to.eq(
-            roundBN(rewarsPerBlock)
-        );
+        expect(roundBN(await superproToken.balanceOf(alice.address))).to.eq(roundBN(rewarsPerBlock));
     });
 
     it('Should accept stake before start date', async function () {
@@ -320,7 +307,7 @@ describe('PromoStaking', function () {
         const bobYield = Math.floor((2 / 3) * ACCURACY); // 2/3 periodReward
 
         expect(alicePending.mul(ACCURACY).div(rewarsPerPeriod)).to.equal(aliceYield);
-        expect((bobBalance.sub(bobStaked)).mul(ACCURACY).div(rewarsPerPeriod)).to.equal(bobYield);
+        expect(bobBalance.sub(bobStaked).mul(ACCURACY).div(rewarsPerPeriod)).to.equal(bobYield);
     });
 
     it('Should emergency withdraw', async function () {
@@ -334,9 +321,7 @@ describe('PromoStaking', function () {
         expect(await promoStaking.getStakedAmount(alice.address)).to.eq(aliceStaked);
 
         await setBlockNumber(STAKING_START_BLOCK + 100);
-        await expect(promoStaking.connect(alice).emergencyWithdraw())
-            .to.emit(promoStaking, 'EmergencyWithdraw')
-            .withArgs(alice.address, aliceStaked);
+        await expect(promoStaking.connect(alice).emergencyWithdraw()).to.emit(promoStaking, 'EmergencyWithdraw').withArgs(alice.address, aliceStaked);
         expect(await superproToken.balanceOf(alice.address)).to.eq(aliceStaked);
     });
 
@@ -380,11 +365,7 @@ describe('PromoStaking', function () {
         await promoStaking.connect(alice).stake(0, alice.address);
 
         expect(await promoStaking.getPendingTokens(alice.address)).to.eq(0);
-        expect(
-            roundBN(await promoStaking.getStakedAmount(alice.address))
-        ).to.eq(
-            roundBN(aliceStaked.add(rewarsPerBlock.mul(capPeriod)))
-        );
+        expect(roundBN(await promoStaking.getStakedAmount(alice.address))).to.eq(roundBN(aliceStaked.add(rewarsPerBlock.mul(capPeriod))));
     });
 
     it('Should fail capitalize pending tokens after staking finished', async function () {

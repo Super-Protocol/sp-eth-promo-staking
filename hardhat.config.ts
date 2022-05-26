@@ -3,18 +3,9 @@ import '@nomiclabs/hardhat-waffle';
 import '@typechain/hardhat';
 import 'solidity-coverage';
 import 'hardhat-gas-reporter';
-import { task } from 'hardhat/config';
 import { config } from './config';
 import { utils } from 'ethers';
-
-// https://hardhat.org/guides/create-task.html
-task('accounts', 'Prints the list of accounts', async (taskArgs, hre) => {
-    const accounts = await hre.ethers.getSigners();
-
-    for (const account of accounts) {
-        console.log(account.address);
-    }
-});
+import './tasks/initialize';
 
 /**
  * @type import('hardhat/config').HardhatUserConfig

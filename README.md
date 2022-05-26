@@ -1,4 +1,22 @@
-# Useful commands
+# Super Protocol Execution Controller
+
+## Local Dev Setup
+
+1. Install dependencies:
+
+    ```
+    yarn
+    ```
+
+2. Create `.env` file:
+
+    ```
+    cp .env.example .env
+    ```
+
+3. Replace example environment variables to your values in `.env` file
+
+## Useful commands
 
 ### Tests
 
@@ -7,7 +25,7 @@ $ npx hardhat test
 $ npx hardhat test test/staking.test.ts --show-stack-traces
 ```
 
-### Locale node
+### Local node
 
 ```sh
 $ npx hardhat node
@@ -26,9 +44,15 @@ $ npx hardhat run scripts/deploy.ts --network mumbai
 $ npx hardhat run scripts/deploy.ts --network ethereum
 ```
 
-## Verify on etherscun
-npx hardhat verify --contract contracts/PromoStaking.sol:PromoStaking --network ethereum <contract address> <staking_multisig address>
+## Verify on etherscan
 
+npx hardhat verify --network ethereum <contract_address> <staking_initializer_address>
+
+## Tasks
+
+This task will deploy Superpro Token, PromoStaking and then initialize it:
+```sh
+npx hardhat initialize --network <network_name> --start <staking_start_block> --duration <staking_duration_in_blocks>
 ```
 
 ### Prettier and linter
