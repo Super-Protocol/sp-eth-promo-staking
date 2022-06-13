@@ -5,7 +5,7 @@
 1. Install dependencies:
 
     ```
-    yarn
+    yarn install
     ```
 
 2. Create `.env` file:
@@ -22,10 +22,10 @@
 
 ```sh
 $ npx hardhat test
-$ npx hardhat test test/staking.test.ts --show-stack-traces
+$ npx hardhat test test/promoStaking.test.ts --show-stack-traces
 ```
 
-### Local node
+### Deploy to locale node
 
 ```sh
 $ npx hardhat node
@@ -33,20 +33,16 @@ $ npx hardhat run scripts/deploy.ts --network local
 $ ethernal listen
 ```
 
-### Mumbai
+### Deploy to other networks
 
 ```sh
-$ npx hardhat run scripts/deploy.ts --network mumbai
-```
-
-### Ethereum mainnet
-```sh
-$ npx hardhat run scripts/deploy.ts --network ethereum
+$ npx hardhat run scripts/deploy.ts --network <network_name>
 ```
 
 ## Verify on etherscan
-
+```sh
 npx hardhat verify --network ethereum <contract_address> <staking_initializer_address>
+```
 
 ## Tasks
 
