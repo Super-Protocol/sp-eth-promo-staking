@@ -1,12 +1,12 @@
 import { ethers } from 'hardhat';
 
 async function main() {
-    if (!process.env.ADMIN_MULTISIG) {
-        throw new Error('ADMIN_MULTISIG is not provided');
+    if (!process.env.INITIALIZER) {
+        throw new Error('INITIALIZER is not provided');
     }
 
     const PromoStakingFactory = await ethers.getContractFactory('PromoStaking');
-    const promoStaking = await PromoStakingFactory.deploy(process.env.ADMIN_MULTISIG);
+    const promoStaking = await PromoStakingFactory.deploy(process.env.INITIALIZER);
     await promoStaking.deployed();
 
     console.log('PromoStaking deployed to:', promoStaking.address);

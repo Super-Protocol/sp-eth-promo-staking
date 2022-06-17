@@ -49,30 +49,26 @@ export default {
         },
         local: {
             url: 'http://localhost:8545',
-            account: config.localhostDeployerPrivateKey,
+            account: config.testPrivateKey,
         },
         mumbai: {
-            // https://docs.matic.network/docs/develop/network-details/network/
             chainId: 80001,
-            url: 'https://matic-mumbai.chainstacklabs.com',
-            accounts: [config.mumbaiDeployerPrivateKey],
-        },
-        mainnet: {
-            url: '',
-        },
-        ethereum: {
-            url: 'https://main-light.eth.linkpool.io',
-            accounts: [config.ethereumDeployerPrivateKey],
+            url: config.mumbaiUrl,
+            accounts: [config.testPrivateKey],
         },
         polygon: {
-            url: 'https://polygon-rpc.com',
-            accounts: [config.polygonDeployerPrivateKey],
+            url: config.mumbaiUrl,
+            accounts: [config.testPrivateKey],
+        },
+        ethereum: {
+            url: config.mainnetUrl,
+            accounts: [config.deployerPrivateKey],
         },
     },
     etherscan: {
         apiKey: {
-            polygon: config.polygonApiKey,
             mainnet: config.ethereumApiKey,
+            polygon: config.polygonApiKey,
             polygonMumbai: config.polygonApiKey,
         },
     },
