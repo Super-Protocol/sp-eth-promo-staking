@@ -46,9 +46,9 @@ npx hardhat verify --network ethereum <contract_address> <staking_initializer_ad
 
 ## Tasks
 
-This task will deploy Superpro Token, PromoStaking and then initialize it:
+This task will initialize PromoStaking:
 ```sh
-npx hardhat initialize --network <network_name> --start <staking_start_block> --duration <staking_duration_in_blocks>
+npx hardhat initialize --network <network_name> --contract <promo_staking_contract> --token <token_address> --start <staking_start_block> --duration <staking_duration_in_blocks>
 ```
 
 ### Prettier and linter
